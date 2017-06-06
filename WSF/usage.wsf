@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package>
+    <job>
+        <runtime>
+            <description>サンプルスクリプトです。</description>
+            <named
+                name="A"
+                helpstring="名前つき引数Aです"
+                type="string"
+                required="true"/>
+            <named
+                name="B"
+                helpstring="名前つき引数Bです"
+                type="boolean"
+                required="false"/>
+            <named
+                name="C"
+                helpstring="名前つき引数Cです"
+                type="simple"
+                required="false"/>
+            <unnamed
+                name="arga"
+                helpstring="名前なし引数Aです"
+                many="false"
+                required="true"/>
+            <unnamed
+                name="argb"
+                helpstring="名前なし引数Bです"
+                many="true"
+                required="false"/>
+            <example></example>
+        </runtime>
+        <script language="JScript"><![CDATA[
+            WScript.Arguments.ShowUsage ();
+        ]]></script>
+    </job>
+</package>

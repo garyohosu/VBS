@@ -1,0 +1,17 @@
+<job id="test1">
+
+<script language="VBScript" src="./sample.vbs"></script>
+
+<script language="VBScript">
+  Option Explicit
+
+  Dim result
+  WScript.Echo "sample.vbsを実行します"
+  
+  result = testFunction()
+
+  WScript.Echo "実行した結果は・・・" & result
+
+</script>
+
+</job>

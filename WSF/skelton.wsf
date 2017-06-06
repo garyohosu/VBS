@@ -1,0 +1,55 @@
+<JOB>
+<COMMENT>
+http://exvbs.seesaa.net/article/156736937.html
+********************************************
+※ COMMENT 要素内はコメントです
+※ WScript.Shell は、良く使う基本的なオブジェクトです
+※ Scripting.FileSystemObject はテキストファイル用です
+********************************************
+</COMMENT>
+
+<OBJECT id="WshShell" progid="WScript.Shell" />
+<OBJECT id="Fso" progid="Scripting.FileSystemObject" />
+
+<SCRIPT language="VBScript">
+'*******************************************
+' 処理開始
+'*******************************************
+
+' ソース内テキストデータの表示
+Wscript.Echo RegTrim(GetResource("myTextData"))
+
+' GUI 
+if vbCancel = MsgBox( "処理が終了しました　　　", vbOKCancel , "サンプル" ) then
+	Wscript.Echo "キャンセルされました"
+end if
+
+'*******************************************
+' 文字列前後の漢字スペースを含むホワイトスペースの削除
+'*******************************************
+Function RegTrim( strValue )
+
+	Dim regEx, str
+
+	Set regEx = New RegExp
+	regEx.IgnoreCase = True
+	regEx.Pattern = "^[　\s]+"
+	str = regEx.Replace( strValue, "" )
+	regEx.Pattern = "[　\s]+$"
+	RegTrim = regEx.Replace( str, "" )
+
+End Function
+</SCRIPT>
+
+<COMMENT>
+********************************************
+ ソース内テキストデータ
+********************************************
+</COMMENT>
+<RESOURCE id="myTextData">
+<![CDATA[
+ここにテキストデータを用意します
+]]>
+</RESOURCE>
+
+</JOB>

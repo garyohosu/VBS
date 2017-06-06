@@ -1,0 +1,1087 @@
+<JOB>
+<COMMENT>
+********************************************
+ 検査データ抽出
+ [使い方]製番ファイルをドラッグする（複数可）
+
+ [対応機種]Minerish Type①  UM03
+
+ [機能]検査データから出荷分だけを取り出し、
+　量産、日常点検のフォルダにコピーする
+　※データファイルはデータ確認用共有サーバーの
+　　データを使用している。
+　　最終検査成績書のデータと立検データの取り出
+　　しも行う。
+
+ DATE       VER  NAME    COMMENT
+ 2016/10/25 0.00 HANTANI 
+********************************************
+</COMMENT>
+
+<OBJECT id="WshShell" progid="WScript.Shell" />
+<OBJECT id="Fso" progid="Scripting.FileSystemObject" />
+
+<COMMENT>
+<SCRIPT language="VBScript" src="Lib/ArrayList.vbs"/>
+<SCRIPT language="VBScript" src="Lib/ClsDBTool.vbs"/>
+</COMMENT>
+
+<SCRIPT language="VBScript">
+'Option Explicit
+'*******************************************
+' 処理開始
+'*******************************************
+	call main
+
+sub main
+	dim ser
+	dim curDb
+	dim serPath
+
+	dim DataRootPath
+	dim OutputRootPath
+	dim Kisyu
+	dim df
+	dim OutPathSaisyu
+	dim Color
+	dim Kisyu_base
+
+	logPrint "[START]" & date & " " & time
+
+	RunOn32bit
+
+	DataRootPath="\\133.100.70.54\ミヨシ電子グループ機密部門サーバー\シナジーテクニカ\電子機器部\製造関連\検査データ\"
+
+	if msgbox("グレーですか？",vbyesno) = vbYes then
+		kisyu = "RS-387-9001"
+		Kisyu_base = "RS-387-9001"
+		color = 0	'ｸﾞﾚｰ
+	else
+		kisyu = "RS-387-9101"
+		Kisyu_base = "RS-387-9001"
+		color = 1	'ホワイト・アイボリー
+	end if
+	OutputRootPath="C:\分布図作成ﾏｸﾛ\RS-387(Minerish)\-9001(Type1)\-9001(Type1)_UM03"
+
+	if color = 0 then	'ｸﾞﾚｰ
+		OutPathSaisyu="C:\機種別\RS-387(Minerish)\Type1_最終検査成績書\DATA0001"
+	else
+		OutPathSaisyu="C:\機種別\RS-387(Minerish)\Type1_最終検査成績書\DATA0101"
+	end if
+
+	Dim MSerList,IPSerList
+	'連想配列の作成
+	Set MSerList = WScript.CreateObject("Scripting.Dictionary")
+	Set IPSerList = WScript.CreateObject("Scripting.Dictionary")
+
+	set ser = new serial
+	set curDb = new DB
+	set df = new DataFile
+
+	curDb.setDB DataRootPath & Kisyu_base & "\DB\RS-387.mdb"
+
+	'日常点検データの切り出しコピー
+	dailyMain DataRootPath,kisyu
+
+	dim dragType
+	dim serFilename
+
+	dragType = true
+
+	if dragType = false then 'ファイル選択
+		serFilename = OpenFileDialog("出荷製番ファイルを開いてください")
+		logPrint "SER:" & serFilename
+		ser.ReadFile serFilename
+	else
+		'製番リストの読み込み
+		Dim args, arg
+
+		Set args = WScript.Arguments
+		ser.Clear
+		For Each arg In args
+			logPrint "SER:" & arg
+			ser.ReadFile arg
+		next
+	end if
+
+	'製番を元にＤＢから工程管理番号の読み込み
+	dim s
+	for each s in ser.SerialList
+		if MSerList.Exists(curDb.getMKotei(s)) then
+			logPrint "ud:" & s & ":" & curDb.getMKotei(s)
+			'MSerList.add curDb.getMKotei(s),""
+			logPrint "ud:" &  s & ":" & curDb.getIPKotei(s)
+			'IPSerList.add curDb.getIPKotei(s),""
+		else
+			logPrint s & ":" & curDb.getMKotei(s)
+			MSerList.add curDb.getMKotei(s),""
+			logPrint s & ":" & curDb.getIPKotei(s)
+			IPSerList.add curDb.getIPKotei(s),""
+		end if
+	next
+
+	dim stageIn,stageOut
+
+	dim SerColumn,DateColumn,TimeColumn
+
+	'0始まりの列番号
+	SerColumn = 6
+	DateColumn = 1
+	TimeColumn = 2
+
+	'Ｍ基板
+	stageIn="\102\OK.DAT"
+	stageOut="\量産\MAIN基板検査\DATA101\102.DAT"
+	df.Clear
+	df.readFile DataRootPath & Kisyu_base & stageIn
+	df.check MSerList,SerColumn,DateColumn,TimeColumn
+	df.saveFile OutputRootPath & StageOut
+
+	'ＩＰ基板
+	df.Clear
+	stageOut="\量産\IP基板検査\DATA201\201.DAT"
+
+	stageIn="\201\OK.DAT"
+	df.readFile DataRootPath & Kisyu_base & stageIn
+	stageIn="\202\OK.DAT"
+	df.readFile DataRootPath & Kisyu_base & stageIn
+	df.check IPSerList,SerColumn,DateColumn,TimeColumn
+	df.saveFile OutputRootPath & StageOut
+
+	'完１
+	stageOut="\量産\完成品検査1\DATA301\302.DAT"
+	df.Clear
+	stageIn="\301\OK.DAT"
+	df.readFile DataRootPath & kisyu & stageIn
+	stageIn="\302\OK.DAT"
+	df.readFile DataRootPath & kisyu & stageIn
+	df.check MSerList,SerColumn,DateColumn,TimeColumn
+	df.saveFile OutputRootPath & StageOut
+
+	'完２
+	stageOut="\量産\完成品検査2\DATA311\311.DAT"
+	df.Clear
+	stageIn="\311\OK.DAT"
+	df.readFile DataRootPath & kisyu & stageIn
+	stageIn="\312\OK.DAT"
+	df.readFile DataRootPath & kisyu & stageIn
+	df.check MSerList,SerColumn,DateColumn,TimeColumn
+	df.saveFile OutputRootPath & StageOut
+
+	'RF1
+	stageIn="\401\OK.DAT"
+	stageOut="\量産\RF検査\DATA401\401.DAT"
+	df.Clear
+	df.readFile DataRootPath & kisyu & stageIn
+	df.check MSerList,SerColumn,DateColumn,TimeColumn
+	df.saveFile OutputRootPath & StageOut
+
+'	'RF2
+'	stageIn="\402\OK.DAT"
+'	stageOut="\量産\RF検査KDDI\DATA402\402.DAT"
+'	df.Clear
+'	df.readFile DataRootPath & kisyu & stageIn
+'	df.check MSerList,SerColumn,DateColumn,TimeColumn
+'	df.saveFile OutputRootPath & StageOut
+
+	'最終検査成績書のコピー
+	saisyu_copy kisyu,DataRootPath,OutPathSaisyu
+
+	msgbox("終了 " & ser.SerialList.count & "台")
+	logPrint "[END]" & date & " " & time
+
+end sub
+
+'最終検査成績書用にコピー
+sub saisyu_copy(kisyu,copyFrom,copyTo)
+
+	logPrint("[saisyu_copy]" & kisyu & " " & copyFrom & " " & copyTo)
+
+	dim stage,stageList
+
+	stage = "T301,T302,T311,T312,T401,501,T601,Ser"
+	stageList = split(stage,",")
+
+	dim item
+
+	for each item in stageList
+		Shell "xcopy " & copyFrom & kisyu &  "\" & item & "\*.* " & CopyTo & "\" & item & "\ /S /Y"
+	next
+
+	'立検データの取り出し
+	Dim ser
+
+	set ser = new SaisyuSerial
+
+	ser.readFile CopyTo & "\Ser\SCM2.csv"
+	ser.saveFile CopyTo & "\Ser\SCM2_立検.csv"
+
+end sub
+
+sub dailyMain(RootPath,kisyu)
+	dim oldShipDate
+	dim dataPath
+	dim filename
+	dim newFilename
+
+	dim stage
+	dim Item
+
+	dim DataPathRoot
+	
+	logPrint "[START:dailyMain]" & date & " " & time  & vbcrlf
+
+	DataPathRoot = RootPath &  kisyu & "\"
+
+	dim OutDataPathRoot
+	OutDataPathRoot="C:\分布図作成ﾏｸﾛ\RS-387(Minerish)\-9001(Type1)\-9001(Type1)_UM03\日常点検\"
+
+	oldShipDate=inputbox("前回出荷日？yyyymmdd")
+
+	if len(oldShipDate) = 8 then
+
+		filename = RootPath & "RS-387-9001\102_日常点検\OK.DAT"
+		newFilename = OutDataPathRoot & "MAIN基板検査\DATA101\102.dat"
+		csv2dat filename,newFilename,oldShipDate
+
+		filename = RootPath & "RS-387-9001_日常点検\201\OK.DAT"
+		newFilename = OutDataPathRoot & "IP基板検査\DATA201\201.dat"
+		csv2dat filename,newFilename,oldShipDate
+
+		filename = RootPath  & "RS-387-9001_日常点検\202\OK.DAT"
+		newFilename = OutDataPathRoot & "IP基板検査\DATA201\201.dat"
+		csv2datAppend filename,newFilename,oldShipDate
+
+		filename = RootPath &  "RS-387-9001_日常点検\302\OK.DAT"
+		newFilename = OutDataPathRoot & "完成品検査1\DATA301\302.dat"
+		csv2dat filename,newFilename,oldShipDate
+
+		filename = RootPath & "RS-387-9001_日常点検\311\OK.DAT"
+		newFilename = OutDataPathRoot & "完成品検査2\DATA311\311.dat"
+		csv2dat filename,newFilename,oldShipDate
+
+		filename = RootPath & "RS-387-9001_日常点検\312\OK.DAT"
+		newFilename = OutDataPathRoot & "完成品検査2\DATA311\311.dat"
+		csv2datappend filename,newFilename,oldShipDate
+
+		filename = RootPath &   "RS-387-9001_日常点検\401\OK.DAT"
+		newFilename = OutDataPathRoot & "RF検査\DATA401\401.DAT"
+		csv2dat filename,newFilename,oldShipDate
+
+'		filename = DataPathRoot & "402\OK.DAT"
+'		newFilename = OutDataPathRoot & "RF検査KDDI\DATA402\402.DAT"
+'		csv2dat filename,newFilename,oldShipDate
+
+		'msgbox("終了")
+	else
+		msgbox("長さが違います")
+	end if
+
+	logPrint "[END:dailyMain]" & date & " " & time & vbcrlf
+
+end sub
+
+'拡張子をCSVからDATに換え古いデータは削除
+sub csv2dat(filename,newFilename,shipDate)
+	dim objFsoRD
+	dim objFileRD
+	dim objFsoWR
+	dim objFileWR
+
+	dim rdLine
+	dim dataItem
+
+	LogPrint("[csv2dat]" & filename & " " & newFilename & " " & shipDate)
+
+	Set objFsoRD = CreateObject("Scripting.FileSystemObject")
+	Set objFileRD = objFsoRD.OpenTextFile(filename, 1, False)
+
+	Set objFsoWR = CreateObject("Scripting.FileSystemObject")
+	Set objFileWR = objFsoWR.OpenTextFile(newFilename, 2, True)
+
+	If Err.Number > 0 Then
+	    WScript.Echo "Open Error"
+	Else
+	    Do Until objFileRD.AtEndOfStream
+	        rdLine = objFileRD.ReadLine
+			dataItem = split(rdLine,",")
+			'WScript.Echo rdLine
+			if dataItem(1) > shipDate and dataItem(1) <> "年月日" then
+				objFileWR.WriteLine rdLine
+			end if
+	    Loop
+	End If
+
+	objFileRD.Close
+	Set objFileRD = Nothing
+	Set objFsoRD = Nothing
+
+	objFileWR.Close
+	Set objFileWR = Nothing
+	Set objFsoWR = Nothing
+
+end sub
+
+'拡張子をCSVからDATに換え古いデータは削除(既存のファイルの最後に追記)
+sub csv2datAppend(filename,newFilename,shipDate)
+	dim objFsoRD
+	dim objFileRD
+	dim objFsoWR
+	dim objFileWR
+
+	dim rdLine
+	dim dataItem
+
+	LogPrint("[csv2datAppend]" & filename & " " & newFilename & " " & shipDate)
+
+
+	Set objFsoRD = CreateObject("Scripting.FileSystemObject")
+	Set objFileRD = objFsoRD.OpenTextFile(filename, 1, False)
+
+	Set objFsoWR = CreateObject("Scripting.FileSystemObject")
+	Set objFileWR = objFsoWR.OpenTextFile(newFilename, 8, True)
+
+	If Err.Number > 0 Then
+	    WScript.Echo "Open Error"
+	Else
+	    Do Until objFileRD.AtEndOfStream
+	        rdLine = objFileRD.ReadLine
+			dataItem = split(rdLine,",")
+			'WScript.Echo rdLine
+			if dataItem(1) > shipDate and dataItem(1) <> "年月日" then
+				objFileWR.WriteLine rdLine
+			end if
+	    Loop
+	End If
+
+	objFileRD.Close
+	Set objFileRD = Nothing
+	Set objFsoRD = Nothing
+
+	objFileWR.Close
+	Set objFileWR = Nothing
+	Set objFsoWR = Nothing
+
+end sub
+
+
+class DataFile
+
+	Dim LineList
+	Dim SerColumn	'製造番号の列番号
+	Dim SelectList
+
+    Private Sub Class_Initialize()
+		Set LineList = CreateObject("System.Collections.ArrayList")
+		Set SelectList = WScript.CreateObject("Scripting.Dictionary")
+		SerColumn = 0
+    End Sub
+
+	sub check(serList,serColumn,DateColumn,TimeColumn)
+		dim rdLineList
+
+		SelectList.RemoveAll() 
+
+		logPrint("serList.count:" & serList.count & "serColumn:" & serColumn)
+
+		dim item
+		dim item2
+		dim ItemList
+
+		for each item in LineList
+			if item<>"" then
+				rdLineList = split(item,",")
+				if UBound(rdLineList) >  serColumn then
+					if rdLineList(serColumn) <> "" then
+						if serList.Exists(rdLineList(serColumn)) = True then'製番リストにその行の製番があるか？
+							if SelectList.Exists(rdLineList(serColumn))=false then'追加先のリストに無い場合
+								'logPrint("add:" & rdLineList(serColumn) & ":" & item)
+								SelectList.add rdLineList(serColumn),item'そのまま行を追加
+							else'既に行がある場合
+								'logPrint("update:" & rdLineList(serColumn) & ":" & item)
+								ItemList = split(SelectList(rdLineList(serColumn)),",")
+								if ItemList(DateColumn) & ItemList(TimeColumn) < rdLineList(DateColumn) & rdLineList(TimeColumn)  then '見つかったデータの日付が新しい場合
+									SelectList(rdLineList(serColumn)) = item	'元のデータと書き換える
+								end if
+							end if
+						end if
+					end if
+				end if
+			end if
+		next
+	end sub
+
+	sub SaveFile(Path)
+		logPrint("SaveFile" & Path)
+		dim WRobjFso
+		dim WRobjFile
+		dim item
+
+		Set WRobjFso = CreateObject("Scripting.FileSystemObject")
+		Set WRobjFile = WRobjFso.OpenTextFile(Path, 2, True)
+
+		If Err.Number > 0 Then
+		    WScript.Echo "Open Error"
+		Else
+			for each item in SelectList.Keys
+				'logPrint item & ":" & SelectList(item)
+			    WRobjFile.WriteLine SelectList(item)
+			next
+		End If
+
+		WRobjFile.Close
+		Set WRobjFile = Nothing
+		Set WRobjFso = Nothing
+	end sub
+
+	sub Clear
+		LineList.clear
+	end sub
+
+	sub ReadFile(Path)
+		dim RDobjFile
+		dim RDobjFso
+		dim RDLine
+
+		logPrint("ReadFile" & Path)
+
+		LineList.add Path
+
+		Set RDobjFso = CreateObject("Scripting.FileSystemObject")
+		if RDobjFso.FileExists(path) = True then 
+			Set RDobjFile = RDobjFso.OpenTextFile(path, 1, False)
+
+			If Err.Number > 0 Then
+			    WScript.Echo "Open Error"
+			Else
+			    Do Until RDobjFile.AtEndOfStream
+			        RDLine =  RDobjFile.ReadLine
+					'logPrint RDLine
+					LineList.add RDLine
+			    Loop
+			End If
+
+			RDobjFile.Close
+			Set RDobjFile = Nothing
+		end if
+		Set RDobjFso = Nothing
+	end sub
+
+end class
+
+class Serial
+
+	Dim SerialList
+	Dim SerColumn	'製造番号の列番号
+
+    Private Sub Class_Initialize()
+		Set SerialList = CreateObject("System.Collections.ArrayList")
+		SerColumn = 0
+    End Sub
+
+    Private Sub Class_Terminate()
+    End Sub
+
+	sub Clear
+		SerialList.clear
+	end sub
+
+	sub ReadFile(Path)
+
+		logPrint "[Serial.ReadFile]" & Path
+
+		dim RDobjFile
+		dim RDobjFso
+		dim RDLine
+		dim RDLineList
+
+
+		Set RDobjFso = CreateObject("Scripting.FileSystemObject")
+		Set RDobjFile = RDobjFso.OpenTextFile(path, 1, False)
+
+		If Err.Number > 0 Then
+		    WScript.Echo "Open Error"
+		Else
+
+		    Do Until RDobjFile.AtEndOfStream
+		        RDLine =  RDobjFile.ReadLine
+				RDLineList = Split(RDLine,",")
+				SerialList.add RDLineList(SerColumn)
+				'logPrint RDLineList(SerColumn)
+		    Loop
+		End If
+
+		RDobjFile.Close
+		Set RDobjFile = Nothing
+		Set RDobjFso = Nothing
+	end sub
+
+end class
+
+class DB
+
+	Dim m_dbt
+
+    Private Sub Class_Initialize()
+		Set m_dbt = new ClsDBTool
+    End Sub
+
+    Private Sub Class_Terminate()
+    End Sub
+
+	sub setDB(Path)
+		m_dbt.setDB Path
+	end sub
+
+	sub closeDB(Path)
+		m_dbt.closeDB
+	end sub
+
+	function getMKotei(ser)
+		dim TableName, RecordName, Key, DataRecordName
+
+		TableName = "Data"
+		RecordName ="製品シリアル番号"
+		Key=ser
+		DataRecordName="工程管理番号"
+
+		getMKotei =m_dbt.getValue(TableName, RecordName, Key, DataRecordName)
+	end function
+
+	function getIPKotei(ser)
+		dim TableName, RecordName, Key, DataRecordName
+
+		TableName = "Data"
+		RecordName ="製品シリアル番号"
+		Key=ser
+		DataRecordName="電源基板工程管理番号"
+
+		getIPKotei =m_dbt.getValue(TableName, RecordName, Key, DataRecordName)
+	end function
+
+end class
+
+function OpenFileDialog(title)
+
+    Dim obj, filename
+    Set obj = CreateObject("Excel.Application")
+    filename = obj.GetOpenFilename("ALL File,*.*",1,title)
+    obj.Quit
+    Set obj = Nothing
+    If filename <> False Then
+          OpenFileDialog = filename
+    End If
+
+end function
+function apppath
+    dim fso
+    set fso = createObject("Scripting.FileSystemObject")
+    apppath = fso.getParentFolderName(WScript.ScriptFullName)
+end function
+
+sub logPrintln(s)
+	logPrint(s & vbcrlf)
+end sub
+
+sub logPrint(s)
+	dim objFsoWR
+	dim objFileWR
+	dim LogFile
+	dim SerialFieldNo
+
+
+	LogFile = apppath & "\log.log"
+
+	Set objFsoWR = CreateObject("Scripting.FileSystemObject")
+	Set objFileWR = objFsoWR.OpenTextFile(LogFile, 8, True)
+
+	If Err.Number > 0 Then
+	    WScript.Echo "Open Error"
+	Else
+		objFileWR.WriteLine s
+	End If
+
+	objFileWR.Close
+	Set objFileWR = Nothing
+	Set objFsoWR = Nothing
+
+end sub
+
+'DATE       Name    Ver  Comment
+'2011/11/11 Hantani 1.00 新規作成
+'2017/05/12 Hantani 1.00 VBS用 新規作成
+
+Class ClsDBTool
+
+	dim adOpenDynamic
+	dim adLockReadOnly
+	dim adOpenKeyset
+	dim adLockOptimistic
+
+	Private DbtCn
+
+    Private Sub Class_Initialize()
+		Set DbtCn = CreateObject("ADODB.Connection")'ﾃﾞｰﾀﾍﾞｰｽ接続用ｺﾈｸｼｮﾝｵﾌﾞｼﾞｪｸﾄ
+		adOpenDynamic = 2
+		adLockReadOnly = 1
+		adOpenKeyset = 1
+		adLockOptimistic = 3
+    End Sub
+
+	Private Sub ErrMsg
+					MsgBox "エラー番号:" & Err.Number & vbCrLf & "説明:" & Err.Description & vbCrLf & "ソース:" & Err.Source & vbCrLf
+	end sub
+
+	'==============================================================================
+	'[機　能]　データベース接続
+	'[関数名]　Function setDB(DBPath As String) As Boolean
+	'[入　力]　DBPath:データベースファイル名
+	'[出　力]　True:接続成功　False:接続失敗
+	'[注　記]　使用例
+	'
+	'		if dbt.setDB(DB_Path) = False Then MsgBox("DB接続エラー")
+	'				'DB_Pathにはデータベースファイルのパスを入れる
+	'==============================================================================
+	Public function setDB(DBPath)
+	    
+		On Error Resume Next
+
+	    'DB連結ｵﾌﾞｼﾞｪｸﾄの設定
+	    If DbtCn.State = 1 Then
+	        DbtCn.Close
+	    End If
+
+		DbtCn.Open "Driver={Microsoft Access Driver (*.mdb)}; DBQ=" & DBPath & ";"
+		
+		if Err.Number = 0 Then
+			setDB = True
+		else
+			setDB = False
+			ErrMsg
+		end if
+	End function
+
+
+	'==============================================================================
+	'[機　能]　SQL実行
+	'[関数名]　Function exeSQL(ByVal cmd As String) As Boolean
+	'[入　力]　cmd:SQL文
+	'[出　力]　True:成功　False:失敗
+	'[注　記]  複数のデータの一括追加や更新などのクエリーを実行
+	'
+	'使用例
+	'        if dbt.exeSQL("INSERT INTO Data (工程管理番号,製品シリアル番号) VALUES ('A00001','1AB00001')") = False Then MsgBox("データベースエラー")
+	'
+	'        if dbt.exeSQL("UPDATE Data SET 工程管理番号 = 'A00001',CPU基板検査完了 = 'TRUE' WHERE 製品シリアル番号 ='1AB00001'") = False Then MsgBox("データベースエラー")
+	'
+	'==============================================================================
+	Function exeSQL(cmd) 'As Boolean
+
+	    Dim Ret 'As String
+	    Dim Rs 'As Object
+	    Dim mySql 'As String
+	    Dim DbCmd 'As ADODB.Command
+
+		On Error Resume Next
+
+	    DbtCn.BeginTrans
+
+	    mySql = cmd
+
+	'    Set DbCmd = New ADODB.Command
+	    Set DbCmd = CreateObject("ADODB.Command")
+
+	    DbCmd.ActiveConnection = DbtCn
+	    DbCmd.CommandText = mySql
+	    DbCmd.Execute
+	    Set DbCmd = Nothing
+
+	    DbtCn.CommitTrans
+
+		if Err.Number = 0 Then
+	    	exeSQL = True
+		else
+			exeSQL = False
+			ErrMsg
+		end if
+
+	End Function
+
+	'==============================================================================
+	'キーを元に別のレコードに値を設定する。
+	'[機　能]　キーを元に別のレコードに値を設定する。
+	'[関数名]　Public Function setValue(TableName As String, RecordName As String, Key As String, DataRecordName As String, rData As String) As Boolean
+	'[入　力]　TableName:テーブル名
+	'　　　　　RecordName：検索するフィールド名
+	'　　　　　Key：検索する値
+	'　　　　　DataRecordName：値を取得するフィールド名
+	'　　　　　rData：設定する値
+	'[出　力]　True:書換成功　False:書換失敗
+	'[注　記]
+	'
+	'使用例
+	'
+	'        if dbt.setValue("Data", "工程管理番号", "A00001", "製品シリアル番号","1AB00001") = False Then MsgBox("データベースエラー")
+	'==============================================================================
+	Public Function setValue(TableName, RecordName, Key, DataRecordName, rData) 'As Boolean
+	    Dim Ret 'As String
+	    Dim Rs 'As Object
+	    Dim mySql 'As String
+	    
+		On Error Resume Next
+	    
+	    mySql = "SELECT * FROM " & TableName
+	    mySql = mySql & " WHERE " & RecordName & "='" & Key & "'"
+	    
+	    Set Rs = CreateObject("ADODB.Recordset")
+	    
+	    'Rs.Open mySql, DbtCn, adOpenDynamic, adLockReadOnly
+	    Rs.Open mySql, DbtCn, adOpenKeyset, adLockOptimistic
+'	    Rs.Open mySql, DbtCn
+            Rs.MoveFirst
+	        
+	    If Rs.EOF = True Or Rs.BOF = True Then
+	        setValue = False
+	    Else
+	        Rs(DataRecordName) = rData
+	        Rs.Update
+	    
+	        setValue = True
+	    End If
+
+	    Rs.Close
+	    Set Rs = Nothing
+
+	    If setValue = True and  Err.Number <> 0  Then
+	        setValue = False
+			ErrMsg
+		end if
+
+	End Function
+	'==============================================================================
+	'[機　能]　キーを元に別のレコードの値を取得する
+	'[関数名]　Public Function getValue(TableName As String, RecordName As String, Key As String, DataRecordName As String) As String
+	'[入　力]　TableName:テーブル名
+	'　　　　　RecordName：検索するフィールド名
+	'　　　　　Key：検索する値
+	'　　　　　DataRecordName：値を取得するフィールド名
+	'[出　力]　"":データ無し　"error":データベースエラー　その他：取得した値
+	'[注　記]　RecordName = DataRecordNameも可。その場合、フィールドに検索する値があるか
+	'　　　　　（既に登録済みか？）を確認することに使える。
+	'使用例
+	'
+	'		例　工程管理番号を与えて、製品シリアル番号を得る
+	'
+	'        DBRet = dbt.getValue("Data", "工程管理番号", frmMain.txtSerialNo.Text, "製品シリアル番号")
+	'
+	'　　　　　　工程管理番号を与えて、工程管理番号を得る（登録済みか確認）
+	'
+	'        DBRet = dbt.getValue("Data", "工程管理番号", frmMain.txtSerialNo.Text, "工程管理番号")
+	'
+	'==============================================================================
+	Public Function getValue(TableName, RecordName, Key, DataRecordName)' As String
+	    Dim Ret 'As String
+	    Dim Rs 'As Object
+	    Dim mySql 'As String
+	    
+		On Error Resume Next
+	    
+	    mySql = "SELECT * FROM " & TableName
+	    mySql = mySql & " WHERE " & RecordName & "='" & Key & "'"
+	    
+	    Set Rs = CreateObject("ADODB.Recordset")
+	    
+'	    Rs.Open mySql, DbtCn, adOpenDynamic, adLockReadOnly
+	    Rs.Open mySql, DbtCn
+            Rs.MoveFirst
+	    
+	        
+	    If Rs.EOF = True Or Rs.BOF = True Then
+	        getValue = ""
+	    Else
+	        getValue = Rs(DataRecordName)
+	    End If
+	        
+	    Rs.Close
+	    Set Rs = Nothing
+	    
+	    If Err.Number <> 0  Then
+	        getValue = "error"
+			ErrMsg
+		end if	
+
+	End Function
+
+	'==============================================================================
+	'[機　能]　キーを元に別の1レコードの値を取得する
+	'[関数名]　Public Function get1RecodeValue(TableName As String, RecordName As String, Key As String) As String
+	'[入　力]　TableName:テーブル名
+	'　　　　　RecordName：検索するフィールド名
+	'　　　　　Key：検索する値
+	'[出　力]　"":データ無し　"error":データベースエラー　その他：取得した値
+	'[注　記]
+	'使用例
+	'
+	'
+	'==============================================================================
+	Public Function get1Recode(TableName, RecordName, Key)' As String
+	    Dim Ret 'As String
+	    Dim Rs 'As Object
+	    Dim mySql 'As String
+	    
+		'On Error Resume Next
+	    
+	    mySql = "SELECT * FROM " & TableName
+	    mySql = mySql & " WHERE " & RecordName & "='" & Key & "'"
+	    
+	    Set Rs = CreateObject("ADODB.Recordset")
+	    
+'	    Rs.Open mySql, DbtCn, adOpenDynamic, adLockReadOnly
+	    Rs.Open mySql, DbtCn
+        Rs.MoveFirst
+	    If Rs.EOF = True Or Rs.BOF = True Then
+	        get1Recode = ""
+	    Else
+	        get1Recode = ""
+			dim item
+			for each item in Rs.Fields
+				msgbox(item.name)
+				if get1Recode = "" then
+					get1Recode = item.name & ":" & Rs(item.name)
+				else
+					get1Recode = get1Recode & "," & item.name & ":" & Rs(item.name) 
+				end if
+			next
+	        'getValue = Rs(DataRecordName)
+	    End If
+	        
+	    Rs.Close
+	    Set Rs = Nothing
+	    
+	    If Err.Number <> 0  Then
+	        getValue = "error"
+			ErrMsg
+		end if	
+
+	End Function
+
+	'==============================================================================
+	'[機　能]　１レコードのみの追加。
+	'[関数名]　Public Function addValue(TableName As String, RecordName As String, rData As String) As Boolean
+	'[入　力]　TableName:テーブル名
+	'　　　　　RecordName：設定するフィールド名
+	'　　　　　rData：設定する値
+	'[出　力]　True:追加成功　False:追加失敗
+	'[注　記]
+	'
+	'使用例
+	'
+	'        if dbt.addValue("Data", "工程管理番号", "A00001") = False Then MsgBox("データベースエラー")
+	'
+	'==============================================================================
+	Public Function addValue(TableName, RecordName, rData) 'As Boolean
+	    
+	    Dim Ret 'As String
+	    Dim Rs 'As Object
+	    Dim mySql 'As String
+	    Dim DbCmd 'As ADODB.Command
+
+	    On Error Resume Next
+
+	    mySql = "INSERT INTO " & TableName & " (" & RecordName & ") VALUES ('" & rData & "');"
+
+		if exeSQL(mySql) = True Then
+		    addValue = True
+	    else
+		    addValue = false
+		end if
+
+	    If Err.Number <> 0  Then
+		    addValue = False
+			ErrMsg
+		end if
+
+	End Function
+
+
+	'==============================================================================
+	'[機　能]　データベース切断
+	'[関数名]　Public Function CloseDB() As Boolean
+	'[入　力]　無し
+	'[出　力]　True:切断成功　False:切断失敗
+	'[注　記]　setDB()と対になっている。データベース接続が必要な場合
+	'　　　　　setDB()⇒処理⇒CloseDB()を行う。以下のクラス開放を行うまで、何度でも繰り返し可能。
+	'
+	'　　　　　使用例
+	'　　　　　dbt.CloseDB
+	'==============================================================================
+	Public Function CloseDB() 'As Boolean
+	    If DbtCn.State = 1 Then DbtCn.Close
+	End Function
+
+    Private Sub Class_Terminate()
+		Set DbtCn = Nothing
+    End Sub
+
+End Class
+
+'動的配列版ArrayList
+class ArrayList
+
+	private m_Item()
+	private m_count
+
+	public sub Add(x)
+		ReDim Preserve m_item(m_count)
+		If IsObject(x) Then
+			set m_item(m_count) = x
+		else
+			m_item(m_count) = x
+		end if
+		m_count = m_count + 1
+	end sub
+
+	public sub Change(i,x)
+		If IsObject(x) Then
+			set m_item(i) = x
+		else
+			m_item(i) = x
+		end if
+	end sub
+
+	public function Count
+		Count = m_count
+	end function
+
+	public function Clear
+		m_count=0
+		Erase m_item
+	end function
+
+	public function Item
+		Item = m_Item
+	end function
+
+	public function Items(n)
+		If IsObject(m_Item(n)) Then
+			set Items = m_Item(n)
+		else
+			Items = m_Item(n)
+		end if
+	end function
+
+end class
+
+'WScript.Shellオブジェクト名.Run "実行するコマンド",ウィンドウサイズ指定,同期モード指定
+'
+'ウィンドウサイズの指定は、コマンド実行時のウィンドウサイズを数値で指定する。
+'指定できる値	実行時のウィンドウサイズ(状態)
+'0	非表示
+'1	通常ウィンドウ
+'2	最小化
+'3	最大化
+'
+'同期モード指定
+'false:非同期
+'True:同期
+
+'Set objShell = CreateObject("WScript.Shell")
+'objShell.Run "cmd /c ipconfig /all > c:\ip.txt",0,false
+sub Shell(cmd)
+
+	logPrint("[Shell]" & cmd)
+
+	dim objShell
+
+	Set objShell = CreateObject("WScript.Shell")
+	objShell.Run cmd,1,True
+
+end sub
+
+
+class SaisyuSerial
+
+	private m_lines	
+
+	Private Sub Class_Initialize()
+		set m_lines = new ArrayList
+	End Sub
+
+	sub readFile(filename)
+		logPrint("[SaisyuSerial.readFile]" & filename)
+		dim objFso
+		dim objFile
+		Set objFso = CreateObject("Scripting.FileSystemObject")
+		Set objFile = objFso.OpenTextFile(filename, 1, False)
+
+		If Err.Number > 0 Then
+			WScript.Echo "Open Error"
+		Else
+			Do Until objFile.AtEndOfStream
+				m_lines.add objFile.ReadLine
+			Loop
+		End If
+
+		objFile.Close
+		Set objFile = Nothing
+		Set objFso = Nothing
+	end sub
+
+	sub saveFile(filename)
+
+		logPrint("[SaisyuSerial.saveFile]" & filename)
+
+		dim objFso
+		dim objFile
+
+		Set objFso = CreateObject("Scripting.FileSystemObject")
+		Set objFile = objFso.OpenTextFile(filename, 2, True)
+
+		If Err.Number > 0 Then
+		    WScript.Echo "Open Error"
+		Else
+			dim i
+			for i = m_lines.count - 1 - 2 to m_lines.count - 1
+				objFile.WriteLine m_lines.items(i)
+			next
+		End If
+
+		objFile.Close
+		Set objFile = Nothing
+		Set objFso = Nothing
+	end sub
+
+end class
+'64bit版VBScriptの場合は32bit版で起動しなおす
+Public Sub RunOn32bit
+
+	Set p_objWshShell = CreateObject("Wscript.Shell")
+	
+	'Environment("Process").Item("PROCESSOR_ARCHITECTURE")がx86の場合は32bit、そうでなければ64bitでVBScriptが動いている
+	'32bitだった場合は何もしない、64bitだった場合は以下32bitで起動しなおす
+	If p_objWshShell.Environment("Process").Item("PROCESSOR_ARCHITECTURE") <> "x86" Then
+		
+		'コマンドライン引数が指定されている場合はそれを再利用するため取得する
+		If Not WScript.Arguments.Count = 0 Then
+			For Each p_admArg In Wscript.Arguments
+			  p_admArrayArguments = p_admArrayArguments & " """ & p_admArg & """"
+			Next
+		End If
+		
+		'WScript.FullNameで起動しているプロセスの名前がわかるので、同じもので起動しなおすためWScriptかCScriptかを確認する
+		If InStr(LCase(WScript.FullName), "wscript") > 0 Then
+			p_admWscriptCscript = "WScript.exe"
+		Else
+			p_admWscriptCscript = "CScript.exe"
+		End If
+		
+		'WScript.ScriptFullNameでスクリプトのパスを取得し、これまでに取得した情報とあわせてコマンドを作成、Wscript.ShellのRunメソッドで実行する
+		p_admCommand = """" &  p_objWshShell.Environment("Process").Item("windir") & "\SysWOW64\" & p_admWscriptCscript & """ """ & WScript.ScriptFullName & """" & p_admArrayArguments
+		p_objWshShell.Run p_admCommand
+
+		'現在の(64bitの)プロセスを終了する
+		WScript.Quit
+	End If
+End Sub
+</SCRIPT>
+</JOB>

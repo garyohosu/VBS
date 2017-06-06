@@ -1,0 +1,70 @@
+<JOB>
+<COMMENT>
+********************************************
+ 検査データ抽出
+
+ DATE       VER  NAME    COMMENT
+ 2016/09/14 0.00 HANTANI 
+********************************************
+</COMMENT>
+
+<OBJECT id="WshShell" progid="WScript.Shell" />
+<OBJECT id="Fso" progid="Scripting.FileSystemObject" />
+<SCRIPT language="VBScript" src="Lib/ArrayList.vbs"/>
+<SCRIPT language="VBScript">
+'*******************************************
+' 処理開始
+'*******************************************
+	Option Explicit
+
+	call main
+
+sub main
+	dim a
+
+	set a = new ArrayList
+
+	dim t1:set t1 = new test:t1.msg="1"
+	a.add(t1)
+	dim t2:set t2 = new test:t2.msg="2"
+	a.add(t2)
+	dim t3:set t3 = new test:t3.msg="3"
+	a.add(t3)
+	msgbox(a.Count)
+
+	dim item
+
+	for each item in a.item
+		item.say
+	next
+
+	a.clear
+	msgbox("clear")
+	for each item in a.item
+		item.say
+	next
+
+	a.add(t1)
+	a.add(t2)
+	a.add(t3)
+	msgbox(a.Count)
+
+
+	for each item in a.item
+		item.say
+	next
+
+
+	a.Items(1).msg="say"
+	a.Items(1).say
+end sub
+class test
+	public msg
+	public sub say
+		msgbox(msg)
+	end sub
+end class
+
+
+</SCRIPT>
+</JOB>

@@ -1,0 +1,1 @@
+cscript.exe //NoLogo read_and_write_stdio.vbs
